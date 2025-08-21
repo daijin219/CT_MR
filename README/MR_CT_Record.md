@@ -19,6 +19,8 @@ Reference: https://blog.csdn.net/qianyunzzz/article/details/129928414
 Reference: https://neuroimage.usc.edu/brainstorm/Tutorials/IeegContactLocalization 
 
 New Tutorial co-registration: https://neuroimage.usc.edu/brainstorm/seeg/ct2mri?action=show
+
+
 1. MRI
    MNI normalization: segment
    ![alt text](image-3.png)
@@ -26,16 +28,22 @@ New Tutorial co-registration: https://neuroimage.usc.edu/brainstorm/seeg/ct2mri?
    2.1   coregister效果不好的话，可以改用SPM
    ![alt text](image-4.png)
    ![alt text](image-5.png)
+   
    2.2   如果CT整体颜色过浅会影响coregister结果
    下图颜色过浅
+   
    ![alt text](image-9.png)
 
 New Tutorials: https://neuroimage.usc.edu/brainstorm/seeg/SeegContactLocalization
+
+
 4. Generate isoSurface
    ![alt text](image-7.png)
    ![alt text](image-8.png)
 5. Electrode labelling and contact localization
    ![alt text](image-10.png)
+
+   
 # Plot electrodes in common template
 1. 显示电极
    ![alt text](image-6.png)
@@ -45,3 +53,4 @@ New Tutorials: https://neuroimage.usc.edu/brainstorm/seeg/SeegContactLocalizatio
    ![alt text](image-12.png)
 
 4. 
+
