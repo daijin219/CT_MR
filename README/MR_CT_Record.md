@@ -24,7 +24,7 @@ New Tutorial co-registration: https://neuroimage.usc.edu/brainstorm/seeg/ct2mri?
 1. MRI
    MNI normalization: segment
    ![alt text](image-3.png)
-2. CT
+2. CT(里面的弹窗目前选择segment-smp12，yes-no的选项都yes)
    2.1   coregister效果不好的话，可以改用SPM
    ![alt text](image-4.png)
    ![alt text](image-5.png)
@@ -53,4 +53,5 @@ New Tutorials: https://neuroimage.usc.edu/brainstorm/seeg/SeegContactLocalizatio
    ![alt text](image-12.png)
 
 4. 
+
 
