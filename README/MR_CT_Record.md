@@ -47,17 +47,17 @@ New Tutorials: https://neuroimage.usc.edu/brainstorm/seeg/SeegContactLocalizatio
 # Plot electrodes in common template
 1. 运行combine_channels合并所有患者的电极点位置
 2. 在default anatomy中选择SEEG/ECoG implantation
-3. 1
-4. 
-
-5. 显示电极
+3. 将sombine_channels的运行结果load进入
+   ![alt text](image-10.png)
+4. 显示电极
    ![alt text](image-6.png)
-6. 修改背景画面颜色
+5. 修改背景画面颜色
    ![alt text](image-11.png)
-7. 保存为图片
+6. 保存为图片
    ![alt text](image-12.png)
 
-8. 
+7. 
+
 
 
 
