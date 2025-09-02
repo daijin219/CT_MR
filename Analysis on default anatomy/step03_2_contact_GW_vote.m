@@ -1,0 +1,335 @@
+%% ====== EDIT THESE PATHS ======
+% Brainstorm folder (where brainstorm.m lives)
+bst_dir      = 'D:\MATLAB_FOLDER\brainstorm3';  % <--- EDIT
+
+% Your projected channel file (in default anatomy/MNI), e.g. merged file
+channel_file = 'D:\SLEEP_PROJECT\MR_CT\Recons_Imaging\scalp_iEEG\data\Group_channels\@intra\channel.mat';  % <--- EDIT
+
+% Folder containing the default subject atlases
+atlas_dir    = 'D:\SLEEP_PROJECT\MR_CT\Recons_Imaging\scalp_iEEG\anat\@default_subject';  % <--- EDIT
+
+% ====== CHANGED: Which atlases to use (for GM/WM) ======
+atlas_files = { ...
+    fullfile(atlas_dir,'subjectimage_tissues_simnibs4.mat'), ...
+    fullfile(atlas_dir,'subjectimage_ASEG_volatlas.mat'), ...
+    fullfile(atlas_dir,'subjectimage_neuromorphometrics_volatlas.mat') };
+
+out_dir = 'D:\SLEEP_PROJECT\MR_CT\Analysis_Code';
+% Search radius (mm) around the voxel if the exact voxel is unlabeled (=0)
+search_radius_mm = 1;
+
+%% ====== Set up Brainstorm path (no GUI needed) ======
+if exist('brainstorm','file') ~= 2
+    addpath(bst_dir);
+end
+if ~brainstorm('status')
+    brainstorm nogui;  % adds toolbox/anatomy and others to path
+end
+assert(exist('cs_convert','file')==2, 'cs_convert not found; check bst_dir.');
+
+%% ====== Load channel file ======
+S = load(channel_file);
+if ~isfield(S,'Channel'); error('channel_file has no variable "Channel".'); end
+Channel = S.Channel;
+
+% Extract contact names and SCS coordinates (meters!)
+names = strings(numel(Channel),1);
+xyz_m = nan(numel(Channel),3);
+for k = 1:numel(Channel)
+    names(k) = string(Channel(k).Name);
+    if ~isempty(Channel(k).Loc)
+        xyz_m(k,:) = (Channel(k).Loc(:,1)).';  % SCS meters (DO NOT multiply by 1000)
+    end
+end
+
+%% ====== Helpers ======
+% ====== CHANGED: map label name -> tissue class
+function tissue = map_to_tissue(lbl)
+    s = string(lbl);
+    tissue = "Other";
+    %%  subjectimage_ASEG_volatlas
+    if any(strcmpi(s, { ...
+        'White L','White R', ...
+        'Cerebellum white L','Cerebellum white R', ...
+        'WM-hypointensities', ...
+        'Optic-Chiasm', ...
+        'CC_Posterior','CC_Mid_Posterior','CC_Central','CC_Mid_Anterior','CC_Anterior'}))
+        tissue = "WM"; return
+    end
+
+    if any(strcmpi(s, { ...
+        'Cortex L','Cortex R', ...
+        'Cerebellum L','Cerebellum R', ...
+        'Thalamus L','Thalamus R', ...
+        'Caudate L','Caudate R', ...
+        'Putamen L','Putamen R', ...
+        'Pallidum L','Pallidum R', ...
+        'Hippocampus L','Hippocampus R', ...
+        'Amygdala L','Amygdala R', ...
+        'Accumbens L','Accumbens R', ...
+        'VentralDC L','VentralDC R', ...
+        'Brainstem'}))   % 这里我把 Brainstem 并入 GM，如需单独列出可改
+        tissue = "GM"; return
+    end
+
+    if any(strcmpi(s, { ...
+        'CSF', ...
+        'Ventricle lat L','Ventricle lat R', ...
+        'Ventricle inf-lat L','Ventricle inf-lat R', ...
+        '3rd-Ventricle','4th-Ventricle', ...
+        'Choroid-plexus L','Choroid-plexus R'}))
+        tissue = "CSF"; return
+    end
+
+    if any(strcmpi(s, { ...
+        'Vessel L','Vessel R','Unknown'}))
+        tissue = "Other"; return
+    end
+
+    %% subjectimage_neuromorphometrics_volatlas
+    % ---- CSF ----
+    if any(strcmpi(s, { ...
+        'CSF', ...
+        '3rd Ventricle','4th Ventricle', ...
+        'Right Lateral Ventricle','Left Lateral Ventricle', ...
+        'Right Inf Lat Vent','Left Inf Lat Vent'}))
+        tissue = "CSF"; return
+    end
+
+    % ---- WM ----
+    if any(strcmpi(s, { ...
+        'Right Cerebral White Matter','Left Cerebral White Matter', ...
+        'Right Cerebellum White Matter','Left Cerebellum White Matter', ...
+        'Optic Chiasm'}))
+        tissue = "WM"; return
+    end
+
+    % ---- Other ----
+    if any(strcmpi(s, {'Background'}))
+        tissue = "Other"; return
+    end
+
+    % ---- GM ----
+    if any(strcmpi(s, { ...
+        'Right Accumbens Area','Left Accumbens Area', ...
+        'Right Amygdala','Left Amygdala', ...
+        'Right Caudate','Left Caudate', ...
+        'Right Pallidum','Left Pallidum', ...
+        'Right Putamen','Left Putamen', ...
+        'Right Thalamus Proper','Left Thalamus Proper', ...
+        'Right Ventral DC','Left Ventral DC', ...
+        'Right Hippocampus','Left Hippocampus', ...
+        'Right Basal Forebrain','Left Basal Forebrain', ...
+        'Brain Stem', ...
+        'Right Cerebellum Exterior','Left Cerebellum Exterior', ...
+        'Cerebellar Vermal Lobules I-V','Cerebellar Vermal Lobules VI-VII','Cerebellar Vermal Lobules VIII-X', ...
+        'Right ACgG anterior cingulate gyrus','Left ACgG anterior cingulate gyrus', ...
+        'Right AIns anterior insula','Left AIns anterior insula', ...
+        'Right AOrG anterior orbital gyrus','Left AOrG anterior orbital gyrus', ...
+        'Right AnG angular gyrus','Left AnG angular gyrus', ...
+        'Right Calc calcarine cortex','Left Calc calcarine cortex', ...
+        'Right CO central operculum','Left CO central operculum', ...
+        'Right Cun cuneus','Left Cun cuneus', ...
+        'Right Ent entorhinal area','Left Ent entorhinal area', ...
+        'Right FO frontal operculum','Left FO frontal operculum', ...
+        'Right FRP frontal pole','Left FRP frontal pole', ...
+        'Right FuG fusiform gyrus','Left FuG fusiform gyrus', ...
+        'Right GRe gyrus rectus','Left GRe gyrus rectus', ...
+        'Right IOG inferior occipital gyrus','Left IOG inferior occipital gyrus', ...
+        'Right ITG inferior temporal gyrus','Left ITG inferior temporal gyrus', ...
+        'Right LiG lingual gyrus','Left LiG lingual gyrus', ...
+        'Right LOrG lateral orbital gyrus','Left LOrG lateral orbital gyrus', ...
+        'Right MCgG middle cingulate gyrus','Left MCgG middle cingulate gyrus', ...
+        'Right MFC medial frontal cortex','Left MFC medial frontal cortex', ...
+        'Right MFG middle frontal gyrus','Left MFG middle frontal gyrus', ...
+        'Right MOG middle occipital gyrus','Left MOG middle occipital gyrus', ...
+        'Right MOrG medial orbital gyrus','Left MOrG medial orbital gyrus', ...
+        'Right MPoG postcentral gyrus medial segment','Left MPoG postcentral gyrus medial segment', ...
+        'Right MPrG precentral gyrus medial segment','Left MPrG precentral gyrus medial segment', ...
+        'Right MSFG superior frontal gyrus medial segment','Left MSFG superior frontal gyrus medial segment', ...
+        'Right MTG middle temporal gyrus','Left MTG middle temporal gyrus', ...
+        'Right OCP occipital pole','Left OCP occipital pole', ...
+        'Right OFuG occipital fusiform gyrus','Left OFuG occipital fusiform gyrus', ...
+        'Right OpIFG opercular part of the inferior frontal gyrus','Left OpIFG opercular part of the inferior frontal gyrus', ...
+        'Right OrIFG orbital part of the inferior frontal gyrus','Left OrIFG orbital part of the inferior frontal gyrus', ...
+        'Right PCgG posterior cingulate gyrus','Left PCgG posterior cingulate gyrus', ...
+        'Right PCu precuneus','Left PCu precuneus', ...
+        'Right PHG parahippocampal gyrus','Left PHG parahippocampal gyrus', ...
+        'Right PIns posterior insula','Left PIns posterior insula', ...
+        'Right PO parietal operculum','Left PO parietal operculum', ...
+        'Right PoG postcentral gyrus','Left PoG postcentral gyrus', ...
+        'Right POrG posterior orbital gyrus','Left POrG posterior orbital gyrus', ...
+        'Right PP planum polare','Left PP planum polare', ...
+        'Right PrG precentral gyrus','Left PrG precentral gyrus', ...
+        'Right PT planum temporale','Left PT planum temporale', ...
+        'Right SCA subcallosal area','Left SCA subcallosal area', ...
+        'Right SFG superior frontal gyrus','Left SFG superior frontal gyrus', ...
+        'Right SMC supplementary motor cortex','Left SMC supplementary motor cortex', ...
+        'Right SMG supramarginal gyrus','Left SMG supramarginal gyrus', ...
+        'Right SOG superior occipital gyrus','Left SOG superior occipital gyrus', ...
+        'Right SPL superior parietal lobule','Left SPL superior parietal lobule', ...
+        'Right STG superior temporal gyrus','Left STG superior temporal gyrus', ...
+        'Right TMP temporal pole','Left TMP temporal pole', ...
+        'Right TrIFG triangular part of the inferior frontal gyrus','Left TrIFG triangular part of the inferior frontal gyrus', ...
+        'Right TTG transverse temporal gyrus','Left TTG transverse temporal gyrus'}))
+        tissue = "GM"; return
+    end
+
+    %% subjectimage_tissues_simnibs4
+    % --- WM ---
+    if any(strcmpi(s, {'White'}))
+        tissue = "WM"; return
+    end
+
+    % --- GM ---
+    if any(strcmpi(s, {'Gray'}))
+        tissue = "GM"; return
+    end
+
+    % --- CSF ---
+    if any(strcmpi(s, {'CSF'}))
+        tissue = "CSF"; return
+    end
+
+    % --- Other ---
+    if any(strcmpi(s, { ...
+        'Background','Scalp','Eyes','Compact_bone','Spongy_bone','Blood','Muscle'}))
+        tissue = "Other"; return
+    end
+end
+
+% Find atlas label and tissue at a coordinate (SCS meters), with small neighborhood search
+function [lbl, tissue] = label_from_volatlas(Mri, pt_m, r_mm)
+    lbl = ""; tissue = "Other";
+    if any(isnan(pt_m)), return; end
+
+    % Convert SCS(m) -> voxel indices
+    vox = cs_convert(Mri, 'scs', 'voxel', pt_m);
+    vox = round(vox);
+    sz  = size(Mri.Cube);
+
+    % Safe voxel read
+    function val = getval(ii,jj,kk)
+        if ii>=1 && ii<=sz(1) && jj>=1 && jj<=sz(2) && kk>=1 && kk<=sz(3)
+            val = double(Mri.Cube(ii,jj,kk));
+        else
+            val = 0;
+        end
+    end
+
+    val = getval(vox(1),vox(2),vox(3));
+
+    % Same sphere search as before
+    if val==0 && r_mm>0
+        rvox = max(1, round(r_mm ./ double(Mri.Voxsize(:)')));
+        [dx,dy,dz] = ndgrid(-rvox(1):rvox(1), -rvox(2):rvox(2), -rvox(3):rvox(3));
+        d2 = (dx.*double(Mri.Voxsize(1))).^2 + ...
+             (dy.*double(Mri.Voxsize(2))).^2 + ...
+             (dz.*double(Mri.Voxsize(3))).^2;
+        mask = d2 <= (r_mm^2 + eps);
+        cand = [vox(1)+dx(mask), vox(2)+dy(mask), vox(3)+dz(mask)];
+        for ii = 1:size(cand,1)
+            val = getval(cand(ii,1), cand(ii,2), cand(ii,3));
+            if val ~= 0, break; end
+        end
+    end
+
+    if val~=0 && isfield(Mri,'Labels') && ~isempty(Mri.Labels)
+        try
+            index = find([Mri.Labels{:,1}] == val);
+            name = string(Mri.Labels{index,2});
+        catch
+            name = "LabelID_"+string(val);
+        end
+        lbl    = name;
+        tissue = map_to_tissue(name);
+    end
+end
+
+%% ====== Label with each atlas and assemble table ======
+n = numel(names);
+atlas_names = strings(numel(atlas_files),1);
+region      = strings(n, numel(atlas_files));
+tissue_mat  = strings(n, numel(atlas_files));
+
+% Load atlases
+Mris = cell(numel(atlas_files),1);
+for a = 1:numel(atlas_files)
+    Mris{a} = load(atlas_files{a});
+    [~,fname,~] = fileparts(atlas_files{a});
+    atlas_names(a) = string(erase(extractAfter(fname,"subjectimage_"),["_volatlas","_volatlas.mat",".mat"]));
+end
+
+% For each contact, query each atlas
+for k = 1:n
+    for a = 1:numel(Mris)
+        [region(k,a), tissue_mat(k,a)] = label_from_volatlas(Mris{a}, xyz_m(k,:), search_radius_mm);
+    end
+end
+
+% ====== Priority by voting (exclude "Other" first; tie-break by pr) ======
+final_tissue = strings(n,1);
+for k = 1:n
+    pr = ["tissues_simnibs4","ASEG","neuromorphometrics"];  % 优先级
+    row = tissue_mat(k,:);
+
+    % 1) 先排除 Other 和 空串
+    mask_valid = (row ~= "") & (row ~= "Other");
+    chosen = "Other";
+
+    if any(mask_valid)
+        vals = row(mask_valid);
+
+        % 2) 对 GM/WM/CSF 投票
+        cats   = ["GM","WM","CSF"];
+        counts = zeros(1, numel(cats));
+        for ci = 1:numel(cats)
+            counts(ci) = sum(vals == cats(ci));
+        end
+
+        if any(counts > 0)
+            maxc = max(counts);
+            tied = cats(counts == maxc);
+
+            if numel(tied) == 1
+                % 单一胜出
+                chosen = tied(1);
+            else
+                % 3) 并列：按 pr 查哪个 atlas 先给出并列类别
+                for p = pr
+                    idx = find(contains(lower(atlas_names), lower(p)), 1);
+                    if ~isempty(idx)
+                        t = row(idx);
+                        if any(tied == t) && (t ~= "") && (t ~= "Other")
+                            chosen = t;
+                            break
+                        end
+                    end
+                end
+                % 如果仍未选出（极端情况），给一个确定性的回退
+                if chosen == "Other"
+                    chosen = tied(1);
+                end
+            end
+        end
+    end
+
+    final_tissue(k) = chosen;
+end
+
+% Build output table
+T = table(names, xyz_m(:,1), xyz_m(:,2), xyz_m(:,3), final_tissue, ...
+    'VariableNames', {'Contact','XsCS_m','YsCS_m','ZsCS_m','Tissue_Final'});
+
+% Add per-atlas region & tissue columns
+for a = 1:numel(atlas_names)
+    T.("Region_"+atlas_names(a)) = region(:,a);
+    T.("Tissue_"+atlas_names(a)) = tissue_mat(:,a);
+end
+
+% Save CSV next to the channel file
+[~, out_base, ~] = fileparts(channel_file);
+csv_path = fullfile(out_dir, out_base + "_tissues_vote.csv");
+writetable(T, csv_path);
+
+fprintf('Done. Tissue table saved:\n  %s\n', csv_path);
